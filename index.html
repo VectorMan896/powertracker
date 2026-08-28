@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="description" content="Track prepaid electricity consumption, predict when to recharge, and monitor appliances." />
+  <title>PowerTracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark">⚡</span>
+        <div>
+          <h1>PowerTracker</h1>
+          <p class="brand-sub" id="meterSub">Credelec prepaid</p>
+        </div>
+      </div>
+      <button class="icon-btn" id="quickReadBtn" title="Log a meter reading" aria-label="Log meter reading">＋</button>
+    </header>
+
+    <!-- Recharge alert banner -->
+    <div id="alertBanner" class="alert-banner hidden" role="alert"></div>
+
+    <!-- Views -->
+    <main id="views">
+
+      <!-- DASHBOARD -->
+      <section class="view" data-view="dashboard">
+        <div class="hero" id="hero">
+          <!-- filled by JS -->
+        </div>
+
+        <div class="stat-grid" id="statGrid"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Remaining energy over time</h2>
+            <span class="hint" id="balanceChartHint"></span>
+          </div>
+          <div id="balanceChart" class="chart"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Daily consumption</h2>
+            <span class="hint" id="dailyChartHint"></span>
+          </div>
+          <div id="dailyChart" class="chart"></div>
+        </div>
+      </section>
+
+      <!-- LOG -->
+      <section class="view hidden" data-view="log">
+        <div class="card">
+          <div class="card-head"><h2>Log meter reading</h2></div>
+          <form id="readingForm" class="form">
+            <label class="field">
+              <span>Remaining kWh on meter</span>
+              <input type="number" step="0.1" inputmode="decimal" id="readingKwh" placeholder="e.g. 190.5" required />
+            </label>
+            <label class="field">
+              <span>Date &amp; time</span>
+              <input type="datetime-local" id="readingTime" required />
+            </label>
+            <button type="submit" class="btn btn-primary">Save reading</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Log recharge</h2></div>
+          <form id="rechargeForm" class="form">
+            <div class="row">
+              <label class="field">
+                <span>Amount paid (MT)</span>
+                <input type="number" step="0.01" inputmode="decimal" id="rechargeMt" placeholder="2000" required />
+              </label>
+              <label class="field">
+                <span>Energy received (kWh)</span>
+                <input type="number" step="0.1" inputmode="decimal" id="rechargeKwh" placeholder="238.2" required />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">
+                <span>IVA (MT) <em>optional</em></span>
+                <input type="number" step="0.01" inputmode="decimal" id="rechargeIva" placeholder="180.49" />
+              </label>
+              <label class="field">
+                <span>Other fees (MT) <em>optional</em></span>
+                <input type="number" step="0.01" inputmode="decimal" id="rechargeFees" placeholder="0" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Reference <em>optional</em></span>
+              <input type="text" id="rechargeRef" placeholder="202608280122232376" />
+            </label>
+            <label class="field">
+              <span>Date &amp; time</span>
+              <input type="datetime-local" id="rechargeTime" required />
+            </label>
+            <p class="rate-preview" id="ratePreview"></p>
+            <button type="submit" class="btn btn-primary">Save recharge</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>History</h2>
+            <span class="hint" id="historyCount"></span>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </section>
+
+      <!-- APPLIANCES -->
+      <section class="view hidden" data-view="appliances">
+        <div class="card summary-card">
+          <div class="summary-row">
+            <div>
+              <span class="summary-label">Modeled daily use</span>
+              <span class="summary-value" id="modeledTotal">–</span>
+            </div>
+            <div>
+              <span class="summary-label">Measured (actual)</span>
+              <span class="summary-value" id="measuredTotal">–</span>
+            </div>
+          </div>
+          <div id="modelBar" class="model-bar"></div>
+          <p class="hint" id="modelHint"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Appliances</h2>
+            <button class="btn btn-sm" id="addApplianceBtn">＋ Add</button>
+          </div>
+          <div id="applianceList" class="appliance-list"></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="view hidden" data-view="settings">
+        <div class="card">
+          <div class="card-head"><h2>Prediction &amp; alerts</h2></div>
+          <form id="settingsForm" class="form">
+            <label class="field">
+              <span>Alert me when remaining kWh falls below</span>
+              <input type="number" step="1" inputmode="decimal" id="setAlertKwh" />
+            </label>
+            <label class="field">
+              <span>…or when days remaining fall below</span>
+              <input type="number" step="0.5" inputmode="decimal" id="setAlertDays" />
+            </label>
+            <label class="field">
+              <span>Base predictions on the last</span>
+              <select id="setWindow">
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="0">All history</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Assumed daily use before enough data (kWh/day)</span>
+              <input type="number" step="0.1" inputmode="decimal" id="setAssumed" />
+            </label>
+            <label class="field">
+              <span>Currency label</span>
+              <input type="text" id="setCurrency" />
+            </label>
+            <label class="check">
+              <input type="checkbox" id="setNotify" />
+              <span>Enable browser notifications for recharge alerts</span>
+            </label>
+            <button type="submit" class="btn btn-primary">Save settings</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Backup &amp; data</h2></div>
+          <div class="btn-col">
+            <button class="btn" id="exportBtn">⬇ Export data (JSON)</button>
+            <label class="btn" for="importFile">⬆ Import data (JSON)</label>
+            <input type="file" id="importFile" accept="application/json" hidden />
+            <button class="btn btn-danger" id="resetBtn">Reset all data</button>
+          </div>
+          <p class="hint">Data is stored only on this device, in your browser. Export regularly to keep a backup.</p>
+        </div>
+
+        <div class="card about">
+          <p><strong>PowerTracker</strong> · offline-first · no account needed.</p>
+          <p class="hint">Add to Home Screen from your browser menu to use it like an app.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom nav -->
+    <nav class="tab-bar">
+      <button class="tab active" data-nav="dashboard"><span>◈</span>Home</button>
+      <button class="tab" data-nav="log"><span>≣</span>Log</button>
+      <button class="tab" data-nav="appliances"><span>⚙</span>Appliances</button>
+      <button class="tab" data-nav="settings"><span>⋯</span>Settings</button>
+    </nav>
+  </div>
+
+  <!-- Appliance editor modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="card-head">
+        <h2 id="modalTitle">Appliance</h2>
+        <button class="icon-btn" id="modalClose" aria-label="Close">✕</button>
+      </div>
+      <form id="applianceForm" class="form">
+        <input type="hidden" id="applianceId" />
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="apName" required />
+        </label>
+        <div class="row">
+          <label class="field">
+            <span>Power (watts)</span>
+            <input type="number" step="1" inputmode="decimal" id="apWatts" required />
+          </label>
+          <label class="field">
+            <span>Quantity</span>
+            <input type="number" step="1" inputmode="numeric" id="apQty" value="1" required />
+          </label>
+        </div>
+        <div class="row">
+          <label class="field">
+            <span>Hours per day <em>(effective ON time)</em></span>
+            <input type="number" step="0.1" inputmode="decimal" id="apHours" required />
+          </label>
+          <label class="field">
+            <span>Days per week</span>
+            <input type="number" step="0.5" min="0" max="7" inputmode="decimal" id="apDays" value="7" required />
+          </label>
+        </div>
+        <label class="field">
+          <span>Category</span>
+          <select id="apCategory">
+            <option>Always-on</option>
+            <option>Heating</option>
+            <option>Refrigeration</option>
+            <option>Cooking</option>
+            <option>Pumps</option>
+            <option>Lighting</option>
+            <option>Entertainment</option>
+            <option>Laundry</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <p class="rate-preview" id="apPreview"></p>
+        <div class="btn-col">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-danger" id="apDelete">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
